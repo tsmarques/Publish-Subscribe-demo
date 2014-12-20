@@ -70,80 +70,34 @@ public class EventBus {
                         }
                         else if(cmd.equals(CMD_LIST))
                             list_streams(socket, out);
-                        else if(cmd.equals(CMD_PUBL)) {
-                            int ret_v = register_publisher(client_msg, socket);
-                            if(ret_v == 1)
-                                out.writeBytes("# You're a publisher for this stream\n");
-                            else if(ret_v == 0)
-                                out.writeBytes("# There's already a publisher for stream " + client_msg.split(" ")[1] + "\n");
-                            else
-                                out.writeBytes("# Invalid command or arguments\n");
-                        }
-                        else if(cmd.equals(CMD_UNPUBL)) {
-                            int ret_v = unregister_publisher(client_msg, socket);
-                            if(ret_v == 1)
-                                out.writeBytes("# You're not a publisher for this stream anymore\n");
-                            else if(ret_v == 0)
-                                out.writeBytes("# You're not a publisher for this stream\n");
-                            else if(ret_v == -1)
-                                out.writeBytes("# This stream doesn't exist\n");
-                            else if(ret_v == -2)
-                                out.writeBytes("# You're not a publisher\n");
-                            else if(ret_v == -3)
-                                out.writeBytes("# Invalid command or arguments\n");
-                        }
-                        else if(cmd.equals(CMD_SUBS)) {
-                            int ret_v = subscribe_stream(client_msg, socket);
-                            if(ret_v == 1)
-                                out.writeBytes("# You're subscribed to this stream\n");
-                            else if(ret_v == 0)
-                                out.writeBytes("# You're already subscribed to this stream\n"); 
-                            else if(ret_v == -1)
-                                out.writeBytes("# This stream doesn't exist\n");
-                            else if(ret_v == -2)
-                                out.writeBytes("# Invalid command or arguments\n");
-                        }
-                        else if(cmd.equals(CMD_UNSUBS)) {
-                            int ret_v = unsubscribe_stream(client_msg, socket);
-                            if(ret_v == 1)
-                                out.writeBytes("# You're not subscribed to this stream anymore\n");
-                            else if(ret_v == 0)
-                                out.writeBytes("# You're not subscribed to this stream\n");
-                            else if(ret_v == -1)
-                                out.writeBytes("# This stream doesn't exist\n");
-                            else if(ret_v == -2)
-                                out.writeBytes("# Invalid command or arguments\n");
-                        }
-                        else if(cmd.equals(CMD_FORW)) {
-                            String[] cmds = client_msg.split(" ");
-                            if(publishers.containsKey(socket)) {
-                                Publisher p = publishers.get(socket);
-                                if(cmds.length == 1) // send data to all streams of this Publisher
-                                    p.forward();
-                                else if(cmds.length == 2) {
-                                    String stream = cmds[1];
-                                    if(stream_exists(stream)) {
-                                        if(p.streams.containsKey(stream))
-                                            p.forward(stream);
-                                        else
-                                            out.writeBytes("# You're not a publisher for this stream\n");
-                                    }
-                                    else
-                                        out.writeBytes("# This stream doesn't exist\n");
-                                }
-                                else
-                                    out.writeBytes("# Too many arguments\n");
+                        else {
+                            String ret_v = "";
+                            if(cmd.equals(CMD_PUBL)) {
+                                ret_v = register_publisher(client_msg, socket);
                             }
-                            else
-                                out.writeBytes("# You're not a publisher\n");
+                            else if(cmd.equals(CMD_UNPUBL)) {
+                                ret_v = unregister_publisher(client_msg, socket);
+                            }
+                            else if(cmd.equals(CMD_SUBS)) {
+                                ret_v = subscribe_stream(client_msg, socket);
+                            }
+                            else if(cmd.equals(CMD_UNSUBS)) {
+                                ret_v = unsubscribe_stream(client_msg, socket);
+                            }
+                            else if(cmd.equals(CMD_FORW)) {
+                                ret_v = forward(client_msg, socket);
+                            }
+                            out.writeBytes(ret_v);
                         }
                     }
                 } catch(Exception e) {e.printStackTrace();}
             }
         }.start();
     }
-    
-    private static int register_publisher(String client_msg, Socket socket) {
+
+    /***************************** Methods to handle publisher requests *****************************/
+    /************************************************************************************************/
+    private static String register_publisher(String client_msg, Socket socket) { // publish cmd
         try {
             String[] cmd = client_msg.split(" ");
             if(cmd.length == 2) {
@@ -159,24 +113,24 @@ public class EventBus {
                     p.add_stream(stream);
                     streams.put(stream, p);
 
-                    return 1;
+                    return "# You're a publisher for this stream\n";
                 }
                 else
-                    return 0;
+                    return "# There's already a publisher for this stream\n";
             }
-            return -1;
+            return "# Invalid command or arguments\n";
         } catch(Exception e) {
             e.printStackTrace();
         }
-        return -1;
+        return "# Invalid command or arguments\n";
     }
 
-    private static int unregister_publisher(String client_msg, Socket socket) {
+    private static String unregister_publisher(String client_msg, Socket socket) { // unpublish cmd
         String[] cmd = client_msg.split(" ");
         if(cmd.length == 2) {
             String stream = cmd[1];
             if(!stream_exists(stream))
-                return -1;
+                return "# This stream doesn't exist\n";
             else {
                 if(publishers.containsKey(socket))  { // is a publisher
                     Publisher p = publishers.get(socket);
@@ -185,17 +139,100 @@ public class EventBus {
                         streams.remove(stream);
                         if(p.streams.size() == 0) // client not a publisher of anymore streams
                             publishers.remove(socket);
-                        return 1;
+                        return "# You're not a publisher for this stream anymore\n";
                     }
                     else
-                        return 0; // not a publisher of stream
+                        return "# You're not a publisher for this stream\n"; // not a publisher of stream
                 }
                 else // not a publisher at all
-                    return -2;
+                    return "# You're not a publisher\n";
             }
         }
-        return -3;
+        return "# Invalid command or arguments\n";
     }
+
+    private static String forward(String client_msg, Socket socket) {
+        String[] cmds = client_msg.split(" ");
+        if(publishers.containsKey(socket)) {
+            Publisher p = publishers.get(socket);
+            if(cmds.length == 1) // send data to all streams of this Publisher
+                p.forward();
+            else if(cmds.length == 2) {
+                String stream = cmds[1];
+                if(stream_exists(stream)) {
+                    if(p.streams.containsKey(stream)) {
+                        p.forward(stream);
+                        return "";
+                    }
+                    else
+                        return "You're not a publisher for this stream\n";
+                }
+                else
+                    return "# This stream doesn't exist\n";
+            }
+            else
+               return "# Too many arguments\n";
+        }
+        else
+            return "# You're not a publisher\n";
+
+        return "";
+    }
+
+    /************************************************************************************************/
+    /************************************************************************************************/
+
+
+    /***************************** Methods to handle subscribers requests ***************************/
+    /************************************************************************************************/
+
+    private static String subscribe_stream(String client_msg, Socket socket) { // subscribe command
+        try {
+            String[] cmd = client_msg.split(" ");
+            if(cmd.length == 2) {
+                String stream = cmd[1];
+                if(stream_exists(stream)) {
+                    Publisher p = streams.get(stream);
+                    if(p.has_subscriber(stream, socket)) // if client is already subscribed to this stream
+                        return "# You're already subscribed to this stream\n";
+                    p.add_subscriber(stream, socket);
+
+                    return "# You're subscribed to this stream\n";
+                }
+                else
+                    return "# This stream doesn't exist\n";
+            }
+            return "# Invalid command or arguments\n";
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+        return "# Invalid command or arguments\n";
+    }
+    
+    private static String unsubscribe_stream(String client_msg, Socket socket) { // unsubscribe cmd
+        try {
+            String[] cmd = client_msg.split(" ");
+            if(cmd.length == 2) {
+                String stream = cmd[1];
+                if(stream_exists(stream)) {
+                    Publisher p = streams.get(stream);
+                    if(!p.has_subscriber(stream, socket)) // if client is not subscriber of this stream
+                        return "# You're not subscribed to this stream\n";
+                    
+                    p.remove_subscriber(stream, socket);
+                    return "# You're not subscribed to this stream anymore\n";
+                }
+                else // stream doesn't exist
+                    return "# This stream doesn't exist\n";
+            }
+            return "# Invalid command or arguments\n";
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+        return "# Invalid command or arguments\n";
+    }
+    /************************************************************************************************/
+    /************************************************************************************************/
 
 
     private static void list_streams(Socket s, DataOutputStream out) {
@@ -208,55 +245,7 @@ public class EventBus {
         }
     }
 
-
-
-    private static int subscribe_stream(String client_msg, Socket socket) {
-        try {
-            String[] cmd = client_msg.split(" ");
-            if(cmd.length == 2) {
-                String stream = cmd[1];
-                if(stream_exists(stream)) {
-                    Publisher p = streams.get(stream);
-                    if(p.has_subscriber(stream, socket)) // if client is already subscribed to this stream
-                        return 0;
-                    p.add_subscriber(stream, socket);
-
-                    return 1;
-                }
-                else
-                    return -1;
-            }
-            return -2;
-        } catch(Exception e) {
-            e.printStackTrace();
-        }
-        return -2;
-    }
-    
-    private static int unsubscribe_stream(String client_msg, Socket socket) {
-        try {
-            String[] cmd = client_msg.split(" ");
-            if(cmd.length == 2) {
-                String stream = cmd[1];
-                if(stream_exists(stream)) {
-                    Publisher p = streams.get(stream);
-                    if(!p.has_subscriber(stream, socket)) // if client is not subscriber of this stream
-                        return 0;
-                    
-                    p.remove_subscriber(stream, socket);
-                    return 1;
-                }
-                else // stream doesn't exist
-                    return -1;
-            }
-            return -2;
-        } catch(Exception e) {
-            e.printStackTrace();
-        }
-        return -2;
-    }
-
-    
+    // auxiliary function
     private static boolean stream_exists(String new_stream) {
         for(String stream : streams.keySet())
             if(new_stream.equals(stream))
