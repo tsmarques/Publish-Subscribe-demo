@@ -12,16 +12,53 @@ class Publisher {
         this.socket = socket;
         streams = new HashMap<>();
     }
-
+    
+    /*
+      Send data through all streams.
+      As this is just a demo, all the data are random floats.
+    */
     public void forward() {
         try {
             Random rand = new Random();
             for(Stream stream : streams.values()) {
                 for(Socket subscriber : stream.stream_subscribers()) {
+                    /* Random data to simulate publications by this Publisher */
+                    Float data1 = rand.nextFloat();
+                    Float data2 = rand.nextFloat();
+                    Float data3 = rand.nextFloat();
+                    
                     DataOutputStream out = new DataOutputStream(subscriber.getOutputStream());
-                    out.writeBytes("Stream data from: stream" + stream.category);
-                    out.writeBytes(Float.toString(rand.nextFloat()));
+                    out.writeBytes("Stream data from: stream " + stream.category + "\n");
+                    // send data to the subscribers
+                    out.writeBytes(Float.toString(data1) + "\n");
+                    out.writeBytes(Float.toString(data2) + "\n");
+                    out.writeBytes(Float.toString(data3) + "\n");
                 }
+            }
+        } catch(Exception e) { e.printStackTrace();}
+    }
+
+    /*
+      Send data through a speicific stream.
+      The data sent is like the function above.
+     */
+    public void forward(String category) {
+        try {
+            Random rand = new Random();
+            Stream stream = streams.get(category);
+
+            /* Random data to simulate publications by this Publisher */
+            Float data1 = rand.nextFloat();
+            Float data2 = rand.nextFloat();
+            Float data3 = rand.nextFloat();
+            
+            for(Socket subscriber : stream.stream_subscribers()) {
+                DataOutputStream out = new DataOutputStream(subscriber.getOutputStream());
+                out.writeBytes("Stream data from: stream " + stream.category + "\n");
+                // send data to the subscribers
+                out.writeBytes(Float.toString(data1) + "\n");
+                out.writeBytes(Float.toString(data2) + "\n");
+                out.writeBytes(Float.toString(data3) + "\n");
             }
         } catch(Exception e) { e.printStackTrace();}
     }
@@ -30,14 +67,37 @@ class Publisher {
         return streams.get(stream).stream_subscribers();
     }
 
+    public HashMap<String, Stream> get_streams() {
+        return streams;
+    }
+
+    /* Search explicitly in a given stream if
+       a given client/socket is subscribed to it.
+       This function is used when the EventBus is
+       checking if a client/socket is not already
+       subscribed to this stream.
+    */
     public boolean has_subscriber(String category, Socket socket) {
-        for(Socket subs : get_subscribers(category)) {
-            if(socket.getChannel() == subs.getChannel()) {
-                System.out.println("PIM");
-                return true;
-            }
+        return(get_subscribers(category).contains(socket));
+        // for(Socket subs : get_subscribers(category)) {
+        //     if(socket == subs) {
+        //         return true;
+        //     }
+        // }
+        // return false;
+    }
+
+    /*
+      Search if a client/socket is subscribed to any stream.
+      If it is, returns the name/category of the stream.
+      This function is only used the EventBus when a client is disconnecting.
+     */
+    public String has_subscriber(Socket socket) {
+        for(Stream stream : streams.values()) {
+            if(has_subscriber(stream.category, socket))
+                return stream.category;
         }
-        return false;
+        return "";
     }
 
     public void add_stream(String category) {
