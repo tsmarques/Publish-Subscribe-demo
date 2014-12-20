@@ -5,7 +5,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.LinkedList;
-
+import java.util.Random;
 
 /*
   Implement forward function
@@ -53,6 +53,21 @@ public class EventBus {
                         String cmd = client_msg.split(" ")[0];
                         if(cmd.equals(CMD_EXIT)) {
                             out.writeBytes("# Closing connection...\n");
+                            if(publishers.containsKey(socket)) {
+                                Publisher p = publishers.get(socket);
+                                /* Erase this publisher streams  */
+                                for(String stream : p.get_streams().keySet()) {
+                                    if(streams.containsKey(stream))
+                                        streams.remove(stream);
+                                }
+                            }
+                            /* Check if this client is subscribed to streams */
+                            for(Publisher publisher : publishers.values()) {
+                                String subsribed_stream = publisher.has_subscriber(socket);
+                                if(subsribed_stream != "")
+                                    publisher.remove_subscriber(subsribed_stream, socket);
+                            }
+                            publishers.remove(socket);
                             socket.close();
                             break;
                         }
@@ -101,6 +116,29 @@ public class EventBus {
                                 out.writeBytes("# This stream doesn't exist\n");
                             else if(ret_v == -2)
                                 out.writeBytes("# Invalid command or arguments\n");
+                        }
+                        else if(cmd.equals(CMD_FORW)) {
+                            String[] cmds = client_msg.split(" ");
+                            if(publishers.containsKey(socket)) {
+                                Publisher p = publishers.get(socket);
+                                if(cmds.length == 1) // send data to all streams of this Publisher
+                                    p.forward();
+                                else if(cmds.length == 2) {
+                                    String stream = cmds[1];
+                                    if(stream_exists(stream)) {
+                                        if(p.streams.containsKey(stream))
+                                            p.forward(stream);
+                                        else
+                                            out.writeBytes("# You're not a publisher for this stream\n");
+                                    }
+                                    else
+                                        out.writeBytes("# This stream doesn't exist\n");
+                                }
+                                else
+                                    out.writeBytes("# Too many arguments\n");
+                            }
+                            else
+                                out.writeBytes("# You're not a publisher\n");
                         }
                     }
                 } catch(Exception e) {e.printStackTrace();}
