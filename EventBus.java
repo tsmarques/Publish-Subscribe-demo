@@ -7,9 +7,6 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Random;
 
-/*
-  Implement forward function
-*/
 public class EventBus {
     private static final String CMD_EXIT = "exit";
     private static final String CMD_SUBS = "subscribe";
@@ -235,7 +232,7 @@ public class EventBus {
         }
         return -2;
     }
-    // NOT WORKING WHEN TRYING TO UNSUBSCRIBE A STREAM(has_subscriber PROB. NOT WORKING)
+    
     private static int unsubscribe_stream(String client_msg, Socket socket) {
         try {
             String[] cmd = client_msg.split(" ");
